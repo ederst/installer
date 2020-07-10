@@ -145,10 +145,10 @@ func getTimeout(envVar string, fallback int) time.Duration {
     if value, ok := os.LookupEnv(envVar); ok {
 		// TODO(sprietl): check for positive integer
 		intValue, _ := strconv.Atoi(value)
-		return time.Duration(intValue)
+		return time.Duration(intValue) * time.Minute
 	}
 
-    return time.Duration(fallback)
+    return time.Duration(fallback) * time.Minute
 }
 
 func newCreateCmd() *cobra.Command {
@@ -268,10 +268,9 @@ func waitForBootstrapComplete(ctx context.Context, config *rest.Config, director
 	discovery := client.Discovery()
 
 	apiTimeout := getTimeout("OPENSHIFT_INSTALL_API_TIMEOUT", 20)
-	timeout := apiTimeout * time.Minute
-	logrus.Infof("Waiting up to %v for the Kubernetes API at %s...", timeout, config.Host)
+	logrus.Infof("Waiting up to %v for the Kubernetes API at %s...", apiTimeout, config.Host)
 
-	apiContext, cancel := context.WithTimeout(ctx, timeout)
+	apiContext, cancel := context.WithTimeout(ctx, apiTimeout)
 	defer cancel()
 	// Poll quickly so we notice changes, but only log when the response
 	// changes (because that's interesting) or when we've seen 15 of the
@@ -317,8 +316,7 @@ func waitForBootstrapComplete(ctx context.Context, config *rest.Config, director
 // and waits for the bootstrap configmap to report that bootstrapping has
 // completed.
 func waitForBootstrapConfigMap(ctx context.Context, client *kubernetes.Clientset) error {
-	configMapTimeout := getTimeout("OPENSHIFT_INSTALL_CONFIGMAP_TIMEOUT", 40)
-	timeout := configMapTimeout * time.Minute
+	timeout := getTimeout("OPENSHIFT_INSTALL_CONFIGMAP_TIMEOUT", 40)
 	logrus.Infof("Waiting up to %v for bootstrapping to complete...", timeout)
 
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -358,8 +356,7 @@ func waitForBootstrapConfigMap(ctx context.Context, client *kubernetes.Clientset
 func waitForInitializedCluster(ctx context.Context, config *rest.Config) error {
 	const initializeClusterTimeoutEnvVar = "OPENSHIFT_INSTALL_INITIALIZE_CLUSTER_TIMEOUT"
 
-	initializeClusterTimeout := getTimeout(initializeClusterTimeoutEnvVar, 30)
-	timeout := initializeClusterTimeout * time.Minute
+	timeout := getTimeout(initializeClusterTimeoutEnvVar, 30)
 
 	// Wait longer for baremetal, due to length of time it takes to boot
 	if assetStore, err := assetstore.NewStore(rootOpts.dir); err == nil {
@@ -440,7 +437,7 @@ func waitForConsole(ctx context.Context, config *rest.Config, directory string) 
 		return "", errors.Wrap(err, "creating a route client")
 	}
 
-	consoleRouteTimeout := 10 * time.Minute
+	consoleRouteTimeout := getTimeout("OPENSHIFT_INSTALL_CONSOLE_ROUTE_TIMEOUT", 10)
 	logrus.Infof("Waiting up to %v for the openshift-console route to be created...", consoleRouteTimeout)
 	consoleRouteContext, cancel := context.WithTimeout(ctx, consoleRouteTimeout)
 	defer cancel()
