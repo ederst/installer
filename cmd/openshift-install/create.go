@@ -256,6 +256,7 @@ func waitForBootstrapComplete(ctx context.Context, config *rest.Config, director
 
 	discovery := client.Discovery()
 
+	// TODO(sprietl): add env var
 	apiTimeout := 20 * time.Minute
 	logrus.Infof("Waiting up to %v for the Kubernetes API at %s...", apiTimeout, config.Host)
 
@@ -305,6 +306,7 @@ func waitForBootstrapComplete(ctx context.Context, config *rest.Config, director
 // and waits for the bootstrap configmap to report that bootstrapping has
 // completed.
 func waitForBootstrapConfigMap(ctx context.Context, client *kubernetes.Clientset) error {
+	// TODO(sprietl): add env var
 	timeout := 40 * time.Minute
 	logrus.Infof("Waiting up to %v for bootstrapping to complete...", timeout)
 
@@ -343,6 +345,9 @@ func waitForBootstrapConfigMap(ctx context.Context, client *kubernetes.Clientset
 // waitForInitializedCluster watches the ClusterVersion waiting for confirmation
 // that the cluster has been initialized.
 func waitForInitializedCluster(ctx context.Context, config *rest.Config) error {
+	// TODO(sprietl): add env var
+	//const userTimeoutEnvVar = "AWS_METADATA_TIMEOUT"
+	//userTimeout := os.Getenv(userTimeoutEnvVar)
 	timeout := 30 * time.Minute
 
 	// Wait longer for baremetal, due to length of time it takes to boot
@@ -350,6 +355,7 @@ func waitForInitializedCluster(ctx context.Context, config *rest.Config) error {
 		installConfig := &installconfig.InstallConfig{}
 		if err := assetStore.Fetch(installConfig); err == nil {
 			if installConfig.Config.Platform.Name() == baremetal.Name {
+				// TODO(sprietl): only adapt if env var not set
 				timeout = 60 * time.Minute
 			}
 		}
