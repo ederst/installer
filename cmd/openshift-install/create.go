@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"strconv"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -140,6 +141,16 @@ var (
 	targets = []target{installConfigTarget, manifestsTarget, ignitionConfigsTarget, clusterTarget}
 )
 
+func getTimeout(envVar string, fallback int) time.Duration {
+    if value, ok := os.LookupEnv(envVar); ok {
+		// TODO(sprietl): check for positive integer
+		intValue, _ := strconv.Atoi(value)
+		return time.Duration(intValue)
+	}
+
+    return time.Duration(fallback)
+}
+
 func newCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -256,11 +267,11 @@ func waitForBootstrapComplete(ctx context.Context, config *rest.Config, director
 
 	discovery := client.Discovery()
 
-	// TODO(sprietl): add env var
-	apiTimeout := 20 * time.Minute
-	logrus.Infof("Waiting up to %v for the Kubernetes API at %s...", apiTimeout, config.Host)
+	apiTimeout := getTimeout("OPENSHIFT_INSTALL_API_TIMEOUT", 20)
+	timeout := apiTimeout * time.Minute
+	logrus.Infof("Waiting up to %v for the Kubernetes API at %s...", timeout, config.Host)
 
-	apiContext, cancel := context.WithTimeout(ctx, apiTimeout)
+	apiContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	// Poll quickly so we notice changes, but only log when the response
 	// changes (because that's interesting) or when we've seen 15 of the
@@ -306,8 +317,8 @@ func waitForBootstrapComplete(ctx context.Context, config *rest.Config, director
 // and waits for the bootstrap configmap to report that bootstrapping has
 // completed.
 func waitForBootstrapConfigMap(ctx context.Context, client *kubernetes.Clientset) error {
-	// TODO(sprietl): add env var
-	timeout := 40 * time.Minute
+	configMapTimeout := getTimeout("OPENSHIFT_INSTALL_CONFIGMAP_TIMEOUT", 40)
+	timeout := configMapTimeout * time.Minute
 	logrus.Infof("Waiting up to %v for bootstrapping to complete...", timeout)
 
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -345,17 +356,17 @@ func waitForBootstrapConfigMap(ctx context.Context, client *kubernetes.Clientset
 // waitForInitializedCluster watches the ClusterVersion waiting for confirmation
 // that the cluster has been initialized.
 func waitForInitializedCluster(ctx context.Context, config *rest.Config) error {
-	// TODO(sprietl): add env var
-	//const userTimeoutEnvVar = "AWS_METADATA_TIMEOUT"
-	//userTimeout := os.Getenv(userTimeoutEnvVar)
-	timeout := 30 * time.Minute
+	const initializeClusterTimeoutEnvVar = "OPENSHIFT_INSTALL_INITIALIZE_CLUSTER_TIMEOUT"
+
+	initializeClusterTimeout := getTimeout(initializeClusterTimeoutEnvVar, 30)
+	timeout := initializeClusterTimeout * time.Minute
 
 	// Wait longer for baremetal, due to length of time it takes to boot
 	if assetStore, err := assetstore.NewStore(rootOpts.dir); err == nil {
 		installConfig := &installconfig.InstallConfig{}
 		if err := assetStore.Fetch(installConfig); err == nil {
-			if installConfig.Config.Platform.Name() == baremetal.Name {
-				// TODO(sprietl): only adapt if env var not set
+			_, ok := os.LookupEnv(initializeClusterTimeoutEnvVar)
+			if installConfig.Config.Platform.Name() == baremetal.Name && !ok {
 				timeout = 60 * time.Minute
 			}
 		}
